@@ -1,572 +1,585 @@
 <!DOCTYPE html>
-  <html lang="en">
-  <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>MetroDrone - Metronome + Drone</title>
-
-      <!-- 
-          MetroDrone: A simple metronome + drone app for music practice
-          
-          To host on GitHub Pages:
-          1. Create a new GitHub repository
-          2. Upload this index.html file AND MetroDrone_2.png to the root
-          3. Enable GitHub Pages in repository Settings > Pages > Source: main branch
-          4. Your app will be live at: https://yourusername.github.io/reponame/
-          
-          To embed in WordPress:
-          Use this HTML block:
-          <iframe src="https://yourusername.github.io/reponame/" width="100%" height="650px" style="border: 
-  none;"></iframe>
-      -->
-
-      <!-- Load Tone.js from CDN -->
-      <script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.js"></script>
-
-      <style>
-          * {
-              margin: 0;
-              padding: 0;
-              box-sizing: border-box;
-          }
-
-          @keyframes gradientShift {
-              0% { background-position: 0% 50%; }
-              50% { background-position: 100% 50%; }
-              100% { background-position: 0% 50%; }
-          }
-
-          @keyframes float {
-              0%, 100% { transform: translateY(0px); }
-              50% { transform: translateY(-10px); }
-          }
-
-          @keyframes pulse {
-              0%, 100% { transform: scale(1); }
-              50% { transform: scale(1.05); }
-          }
-
-          body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
-  sans-serif;
-              background: linear-gradient(-45deg, #667eea, #764ba2, #f093fb, #4facfe);
-              background-size: 400% 400%;
-              animation: gradientShift 15s ease infinite;
-              min-height: 100vh;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              padding: 20px;
-          }
-
-          .container {
-              background: rgba(255, 255, 255, 0.95);
-              backdrop-filter: blur(10px);
-              border-radius: 24px;
-              box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.5);
-              padding: 40px 30px;
-              max-width: 480px;
-              width: 100%;
-              position: relative;
-              overflow: hidden;
-          }
-
-          .container::before {
-              content: '';
-              position: absolute;
-              top: -50%;
-              left: -50%;
-              width: 200%;
-              height: 200%;
-              background: radial-gradient(circle, rgba(102, 126, 234, 0.1) 0%, transparent 70%);
-              animation: pulse 4s ease-in-out infinite;
-              pointer-events: none;
-          }
-
-          .logo-container {
-              text-align: center;
-              margin-bottom: 35px;
-              animation: float 3s ease-in-out infinite;
-          }
-
-          .logo {
-              max-width: 280px;
-              width: 100%;
-              height: auto;
-              /* Clean transparent image styling */
-              filter: drop-shadow(0 10px 20px rgba(102, 126, 234, 0.25));
-              transition: transform 0.3s ease;
-          }
-
-          .logo:hover {
-              transform: scale(1.05);
-              filter: drop-shadow(0 12px 24px rgba(102, 126, 234, 0.35));
-          }
-
-          .control-group {
-              margin-bottom: 25px;
-              position: relative;
-              z-index: 1;
-          }
-
-          label {
-              display: block;
-              font-weight: 700;
-              color: #555;
-              margin-bottom: 10px;
-              font-size: 0.95em;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-          }
-
-          input[type="number"],
-          select {
-              width: 100%;
-              padding: 14px;
-              font-size: 1em;
-              border: 3px solid transparent;
-              border-radius: 12px;
-              background: linear-gradient(white, white) padding-box,
-                          linear-gradient(135deg, #667eea, #764ba2) border-box;
-              transition: all 0.3s ease;
-              font-weight: 500;
-          }
-
-          input[type="number"]:focus,
-          select:focus {
-              outline: none;
-              transform: translateY(-2px);
-              box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
-          }
-
-          input[type="range"] {
-              width: 100%;
-              height: 10px;
-              border-radius: 5px;
-              background: linear-gradient(to right, #667eea, #764ba2);
-              outline: none;
-              -webkit-appearance: none;
-              margin-top: 8px;
-              position: relative;
-          }
-
-          input[type="range"]::-webkit-slider-thumb {
-              -webkit-appearance: none;
-              appearance: none;
-              width: 24px;
-              height: 24px;
-              border-radius: 50%;
-              background: white;
-              box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
-              cursor: pointer;
-              transition: all 0.2s ease;
-          }
-
-          input[type="range"]::-webkit-slider-thumb:hover {
-              transform: scale(1.3);
-              box-shadow: 0 6px 20px rgba(102, 126, 234, 0.7);
-          }
-
-          input[type="range"]::-webkit-slider-thumb:active {
-              transform: scale(1.1);
-          }
-
-          input[type="range"]::-moz-range-thumb {
-              width: 24px;
-              height: 24px;
-              border-radius: 50%;
-              background: white;
-              box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
-              cursor: pointer;
-              border: none;
-              transition: all 0.2s ease;
-          }
-
-          input[type="range"]::-moz-range-thumb:hover {
-              transform: scale(1.3);
-          }
-
-          .tempo-inputs {
-              display: flex;
-              gap: 12px;
-              align-items: center;
-              margin-bottom: 8px;
-          }
-
-          .tempo-inputs input[type="number"] {
-              width: 90px;
-              flex-shrink: 0;
-              text-align: center;
-              font-weight: 700;
-              font-size: 1.1em;
-          }
-
-          .tempo-inputs input[type="range"] {
-              flex: 1;
-              margin-top: 0;
-          }
-
-          .transport-buttons {
-              display: flex;
-              gap: 15px;
-              margin-top: 35px;
-          }
-
-          button {
-              flex: 1;
-              padding: 18px;
-              font-size: 1.2em;
-              font-weight: 700;
-              border: none;
-              border-radius: 14px;
-              cursor: pointer;
-              transition: all 0.2s ease;
-              color: white;
-              text-transform: uppercase;
-              letter-spacing: 1px;
-              position: relative;
-              overflow: hidden;
-          }
-
-          button::before {
-              content: '';
-              position: absolute;
-              top: 50%;
-              left: 50%;
-              width: 0;
-              height: 0;
-              border-radius: 50%;
-              background: rgba(255, 255, 255, 0.3);
-              transform: translate(-50%, -50%);
-              transition: width 0.6s, height 0.6s;
-          }
-
-          button:hover::before {
-              width: 300px;
-              height: 300px;
-          }
-
-          button span {
-              position: relative;
-              z-index: 1;
-          }
-
-          .btn-start {
-              background: linear-gradient(135deg, #667eea, #764ba2);
-              box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
-          }
-
-          .btn-start:hover {
-              transform: translateY(-3px);
-              box-shadow: 0 12px 32px rgba(102, 126, 234, 0.6);
-          }
-
-          .btn-stop {
-              background: linear-gradient(135deg, #f093fb, #f5576c);
-              box-shadow: 0 8px 24px rgba(245, 87, 108, 0.4);
-          }
-
-          .btn-stop:hover {
-              transform: translateY(-3px);
-              box-shadow: 0 12px 32px rgba(245, 87, 108, 0.6);
-          }
-
-          button:active {
-              transform: translateY(0);
-          }
-
-          .status {
-              text-align: center;
-              margin-top: 20px;
-              color: #666;
-              font-size: 0.95em;
-              font-weight: 600;
-              min-height: 24px;
-              text-transform: uppercase;
-              letter-spacing: 0.5px;
-          }
-
-          .status.playing {
-              color: #667eea;
-              animation: pulse 2s ease-in-out infinite;
-          }
-
-          @media (max-width: 600px) {
-              .container {
-                  padding: 30px 20px;
-              }
-
-              .logo {
-                  max-width: 220px;
-              }
-
-              button {
-                  padding: 16px;
-                  font-size: 1em;
-              }
-
-              .tempo-inputs input[type="number"] {
-                  width: 80px;
-                  font-size: 1em;
-              }
-          }
-      </style>
-  </head>
-  <body>
-      <div class="container">
-          <div class="logo-container">
-              <img src="MetroDrone_2.png" alt="MetroDrone" class="logo">
-          </div>
-
-          <!-- Tempo Control -->
-          <div class="control-group">
-              <label for="tempo">Tempo (BPM)</label>
-              <div class="tempo-inputs">
-                  <input type="number" id="tempoNumber" min="40" max="200" value="80">
-                  <input type="range" id="tempoSlider" min="40" max="200" value="80">
-              </div>
-          </div>
-
-          <!-- Drone Root Note -->
-          <div class="control-group">
-              <label for="droneRoot">Drone root</label>
-              <select id="droneRoot">
-                  <option value="C">C</option>
-                  <option value="C#">C#</option>
-                  <option value="D" selected>D</option>
-                  <option value="D#">D#</option>
-                  <option value="E">E</option>
-                  <option value="F">F</option>
-                  <option value="F#">F#</option>
-                  <option value="G">G</option>
-                  <option value="G#">G#</option>
-                  <option value="A">A</option>
-                  <option value="A#">A#</option>
-                  <option value="B">B</option>
-              </select>
-          </div>
-
-          <!-- Drone Volume -->
-          <div class="control-group">
-              <label for="droneVolume">Drone volume</label>
-              <input type="range" id="droneVolume" min="0" max="100" value="50">
-          </div>
-
-          <!-- Metronome Volume -->
-          <div class="control-group">
-              <label for="metronomeVolume">Metronome volume</label>
-              <input type="range" id="metronomeVolume" min="0" max="100" value="50">
-          </div>
-
-          <!-- Transport Buttons -->
-          <div class="transport-buttons">
-              <button class="btn-start" id="startBtn"><span>Start</span></button>
-              <button class="btn-stop" id="stopBtn"><span>Stop</span></button>
-          </div>
-
-          <div class="status" id="status">Ready</div>
-      </div>
-
-      <script>
-          // ===================================================================
-          // MetroDrone - Metronome + Drone App
-          // ===================================================================
-
-          // --- NOTE MAPPING: Root + Fifth for each chromatic root ---
-          // Maps each root note to [root, fifth] in appropriate octaves for fiddle practice
-          const NOTE_MAP = {
-              'C':  ['C3', 'G3'],
-              'C#': ['C#3', 'G#3'],
-              'D':  ['D3', 'A3'],
-              'D#': ['D#3', 'A#3'],
-              'E':  ['E3', 'B3'],
-              'F':  ['F3', 'C4'],
-              'F#': ['F#3', 'C#4'],
-              'G':  ['G2', 'D3'],
-              'G#': ['G#2', 'D#3'],
-              'A':  ['A2', 'E3'],
-              'A#': ['A#2', 'F3'],
-              'B':  ['B2', 'F#3']
-          };
-
-          // --- STATE ---
-          let isPlaying = false;
-          let audioInitialized = false;
-
-          // --- SYNTHS & AUDIO ---
-
-          // Metronome synth: short, clean kick/click sound
-          const metronome = new Tone.MembraneSynth({
-              pitchDecay: 0.008,
-              octaves: 2,
-              envelope: {
-                  attack: 0.0006,
-                  decay: 0.05,
-                  sustain: 0
-              }
-          }).toDestination();
-
-          // Drone synth: warm pad with root + fifth
-          const droneSynth = new Tone.PolySynth(Tone.Synth, {
-              oscillator: {
-                  type: 'sine'
-              },
-              envelope: {
-                  attack: 0.5,
-                  decay: 0.1,
-                  sustain: 0.9,
-                  release: 1.0
-              }
-          });
-
-          // Low-pass filter for warmth
-          const filter = new Tone.Filter({
-              frequency: 2000,
-              type: 'lowpass',
-              rolloff: -12
-          }).toDestination();
-
-          // Gain nodes for volume control
-          // Metronome needs more gain since it's a short transient vs sustained drone
-          const metronomeGain = new Tone.Gain(0.5).toDestination();
-          const droneGain = new Tone.Gain(0.15).toDestination();
-
-          // Connect audio chain: metronome -> metronomeGain -> destination
-          metronome.disconnect();
-          metronome.connect(metronomeGain);
-
-          // Connect audio chain: droneSynth -> filter -> droneGain -> destination
-          droneSynth.disconnect();
-          droneSynth.connect(filter);
-          filter.disconnect();
-          filter.connect(droneGain);
-
-          // --- TRANSPORT SETUP ---
-          Tone.Transport.bpm.value = 80;
-
-          // Schedule metronome clicks on every quarter note
-          Tone.Transport.scheduleRepeat((time) => {
-              metronome.triggerAttackRelease('C2', '16n', time);
-          }, '4n');
-
-          // --- DOM ELEMENTS ---
-          const tempoNumber = document.getElementById('tempoNumber');
-          const tempoSlider = document.getElementById('tempoSlider');
-          const droneRootSelect = document.getElementById('droneRoot');
-          const droneVolumeSlider = document.getElementById('droneVolume');
-          const metronomeVolumeSlider = document.getElementById('metronomeVolume');
-          const startBtn = document.getElementById('startBtn');
-          const stopBtn = document.getElementById('stopBtn');
-          const statusDiv = document.getElementById('status');
-
-          // --- HELPER FUNCTIONS ---
-
-          // Update status message
-          function setStatus(message, isPlaying = false) {
-              statusDiv.textContent = message;
-              if (isPlaying) {
-                  statusDiv.classList.add('playing');
-              } else {
-                  statusDiv.classList.remove('playing');
-              }
-          }
-
-          // Start the drone with current root note
-          function startDrone() {
-              const root = droneRootSelect.value;
-              const notes = NOTE_MAP[root];
-
-              // Stop any existing drone notes
-              droneSynth.releaseAll();
-
-              // Start new drone chord immediately (no delay)
-              droneSynth.triggerAttack(notes);
-          }
-
-          // Stop the drone
-          function stopDrone() {
-              droneSynth.releaseAll();
-          }
-
-          // --- EVENT HANDLERS ---
-
-          // Sync tempo number input and slider - instant updates
-          tempoNumber.addEventListener('input', (e) => {
-              const value = Math.max(40, Math.min(200, parseInt(e.target.value) || 40));
-              tempoNumber.value = value;
-              tempoSlider.value = value;
-              Tone.Transport.bpm.value = value; // Instant update, no ramp
-          });
-
-          tempoSlider.addEventListener('input', (e) => {
-              const value = parseInt(e.target.value);
-              tempoNumber.value = value;
-              Tone.Transport.bpm.value = value; // Instant update, no ramp
-          });
-
-          // Update drone root note (restart drone if playing) - instant
-          droneRootSelect.addEventListener('change', () => {
-              if (isPlaying) {
-                  stopDrone();
-                  startDrone();
-              }
-          });
-
-          // Update drone volume - instant response
-          // Drone is sustained, so it feels louder - using lower base gain (0.15)
-          droneVolumeSlider.addEventListener('input', (e) => {
-              const value = parseInt(e.target.value);
-              // Using linear scaling for more predictable control
-              const gain = (value / 100) * 0.4; // Max 0.4 gain
-              droneGain.gain.value = gain; // Instant, no ramp
-          });
-
-          // Update metronome volume - instant response
-          // Metronome is short transient, needs higher gain to match perceived loudness
-          metronomeVolumeSlider.addEventListener('input', (e) => {
-              const value = parseInt(e.target.value);
-              // Using linear scaling with higher multiplier
-              const gain = (value / 100) * 1.2; // Max 1.2 gain
-              metronomeGain.gain.value = gain; // Instant, no ramp
-          });
-
-          // Start button: Initialize audio context and start transport + drone
-          startBtn.addEventListener('click', async () => {
-              if (isPlaying) return; // Already playing, ignore
-
-              try {
-                  // Initialize Tone.js audio context (required for mobile browsers)
-                  if (!audioInitialized) {
-                      await Tone.start();
-                      audioInitialized = true;
-                      console.log('Audio context initialized');
-                  }
-
-                  // Start transport and drone immediately
-                  Tone.Transport.start();
-                  startDrone();
-
-                  isPlaying = true;
-                  setStatus('Playing...', true);
-
-              } catch (error) {
-                  console.error('Error starting:', error);
-                  setStatus('Error starting audio');
-              }
-          });
-
-          // Stop button: Stop transport and drone immediately
-          stopBtn.addEventListener('click', () => {
-              if (!isPlaying) return; // Not playing, safe no-op
-
-              Tone.Transport.stop();
-              stopDrone();
-
-              isPlaying = false;
-              setStatus('Stopped');
-          });
-
-          console.log('MetroDrone initialized and ready');
-      </script>
-  </body>
-  </html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetroDrone - Metronome + Drone</title>
+    
+    <!-- 
+        MetroDrone: A simple metronome + drone app for music practice
+        
+        To host on GitHub Pages:
+        1. Create a new GitHub repository
+        2. Upload this index.html file, MetroDrone_2.png, and drone_D.mp3 to the root
+        3. Enable GitHub Pages in repository Settings > Pages > Source: main branch
+        4. Your app will be live at: https://yourusername.github.io/reponame/
+        
+        To embed in WordPress:
+        Use this HTML block:
+        <iframe src="https://yourusername.github.io/reponame/" width="100%" height="650px" style="border: none;"></iframe>
+    -->
+    
+    <!-- Load Tone.js from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/tone@14.7.77/build/Tone.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(-45deg, #667eea, #764ba2, #f093fb, #4facfe);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.5);
+            padding: 40px 30px;
+            max-width: 480px;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(102, 126, 234, 0.1) 0%, transparent 70%);
+            animation: pulse 4s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        .logo-container {
+            text-align: center;
+            margin-bottom: 35px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .logo {
+            max-width: 280px;
+            width: 100%;
+            height: auto;
+            filter: drop-shadow(0 10px 20px rgba(102, 126, 234, 0.25));
+            transition: transform 0.3s ease;
+        }
+
+        .logo:hover {
+            transform: scale(1.05);
+            filter: drop-shadow(0 12px 24px rgba(102, 126, 234, 0.35));
+        }
+
+        .control-group {
+            margin-bottom: 25px;
+            position: relative;
+            z-index: 1;
+        }
+
+        label {
+            display: block;
+            font-weight: 700;
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 0.95em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 14px;
+            font-size: 1em;
+            border: 3px solid transparent;
+            border-radius: 12px;
+            background: linear-gradient(white, white) padding-box,
+                        linear-gradient(135deg, #667eea, #764ba2) border-box;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        input[type="number"]:focus,
+        select:focus {
+            outline: none;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 10px;
+            border-radius: 5px;
+            background: linear-gradient(to right, #667eea, #764ba2);
+            outline: none;
+            -webkit-appearance: none;
+            margin-top: 8px;
+            position: relative;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.3);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.7);
+        }
+
+        input[type="range"]::-webkit-slider-thumb:active {
+            transform: scale(1.1);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+        }
+
+        input[type="range"]::-moz-range-thumb:hover {
+            transform: scale(1.3);
+        }
+
+        .tempo-inputs {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .tempo-inputs input[type="number"] {
+            width: 90px;
+            flex-shrink: 0;
+            text-align: center;
+            font-weight: 700;
+            font-size: 1.1em;
+        }
+
+        .tempo-inputs input[type="range"] {
+            flex: 1;
+            margin-top: 0;
+        }
+
+        .transport-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 35px;
+        }
+
+        button {
+            flex: 1;
+            padding: 18px;
+            font-size: 1.2em;
+            font-weight: 700;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        button:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        button span {
+            position: relative;
+            z-index: 1;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-start:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 32px rgba(102, 126, 234, 0.6);
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            box-shadow: 0 8px 24px rgba(245, 87, 108, 0.4);
+        }
+
+        .btn-stop:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 32px rgba(245, 87, 108, 0.6);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .status {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 0.95em;
+            font-weight: 600;
+            min-height: 24px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status.playing {
+            color: #667eea;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 30px 20px;
+            }
+
+            .logo {
+                max-width: 220px;
+            }
+
+            button {
+                padding: 16px;
+                font-size: 1em;
+            }
+
+            .tempo-inputs input[type="number"] {
+                width: 80px;
+                font-size: 1em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo-container">
+            <img src="MetroDrone_2.png" alt="MetroDrone" class="logo">
+        </div>
+
+        <!-- Tempo Control -->
+        <div class="control-group">
+            <label for="tempo">Tempo (BPM)</label>
+            <div class="tempo-inputs">
+                <input type="number" id="tempoNumber" min="40" max="200" value="80">
+                <input type="range" id="tempoSlider" min="40" max="200" value="80">
+            </div>
+        </div>
+
+        <!-- Drone Root Note -->
+        <div class="control-group">
+            <label for="droneRoot">Drone root</label>
+            <select id="droneRoot">
+                <option value="C">C</option>
+                <option value="C#">C#</option>
+                <option value="D" selected>D</option>
+                <option value="D#">D#</option>
+                <option value="E">E</option>
+                <option value="F">F</option>
+                <option value="F#">F#</option>
+                <option value="G">G</option>
+                <option value="G#">G#</option>
+                <option value="A">A</option>
+                <option value="A#">A#</option>
+                <option value="B">B</option>
+            </select>
+        </div>
+
+        <!-- Drone Volume -->
+        <div class="control-group">
+            <label for="droneVolume">Drone volume</label>
+            <input type="range" id="droneVolume" min="0" max="100" value="50">
+        </div>
+
+        <!-- Metronome Volume -->
+        <div class="control-group">
+            <label for="metronomeVolume">Metronome volume</label>
+            <input type="range" id="metronomeVolume" min="0" max="100" value="50">
+        </div>
+
+        <!-- Transport Buttons -->
+        <div class="transport-buttons">
+            <button class="btn-start" id="startBtn"><span>Start</span></button>
+            <button class="btn-stop" id="stopBtn"><span>Stop</span></button>
+        </div>
+
+        <div class="status" id="status">Ready</div>
+    </div>
+
+    <script>
+        // ===================================================================
+        // MetroDrone - Metronome + Drone App
+        // ===================================================================
+
+        // --- NOTE MAPPING: Root + Fifth for each chromatic root ---
+        // Maps each root note to [root, fifth] in appropriate octaves for fiddle practice
+        const NOTE_MAP = {
+            'C':  ['C3', 'G3'],
+            'C#': ['C#3', 'G#3'],
+            'D':  ['D3', 'A3'],
+            'D#': ['D#3', 'A#3'],
+            'E':  ['E3', 'B3'],
+            'F':  ['F3', 'C4'],
+            'F#': ['F#3', 'C#4'],
+            'G':  ['G2', 'D3'],
+            'G#': ['G#2', 'D#3'],
+            'A':  ['A2', 'E3'],
+            'A#': ['A#2', 'F3'],
+            'B':  ['B2', 'F#3']
+        };
+
+        // --- STATE ---
+        let isPlaying = false;
+        let audioInitialized = false;
+
+        // --- SYNTHS & AUDIO ---
+
+        // Metronome synth: short, clean kick/click sound
+        const metronome = new Tone.MembraneSynth({
+            pitchDecay: 0.008,
+            octaves: 2,
+            envelope: {
+                attack: 0.0006,
+                decay: 0.05,
+                sustain: 0
+            }
+        }).toDestination();
+
+        // Drone synth: warm pad with root + fifth (for non-MP3 notes)
+        const droneSynth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: {
+                type: 'sine'
+            },
+            envelope: {
+                attack: 0.5,
+                decay: 0.1,
+                sustain: 0.9,
+                release: 1.0
+            }
+        });
+
+        // MP3 Player for D drone
+        const dronePlayer = new Tone.Player({
+            url: "drone_D.mp3",
+            loop: true,
+            fadeIn: 0.5,
+            fadeOut: 1.0
+        }).toDestination();
+
+        // Low-pass filter for warmth (for synth)
+        const filter = new Tone.Filter({
+            frequency: 2000,
+            type: 'lowpass',
+            rolloff: -12
+        }).toDestination();
+
+        // Gain nodes for volume control
+        const metronomeGain = new Tone.Gain(0.5).toDestination();
+        const droneGain = new Tone.Gain(0.3).toDestination(); // Increased from 0.15 to 0.3
+        const playerGain = new Tone.Gain(0.3).toDestination(); // Gain for MP3 player
+        
+        // Connect audio chain: metronome -> metronomeGain -> destination
+        metronome.disconnect();
+        metronome.connect(metronomeGain);
+        
+        // Connect audio chain: droneSynth -> filter -> droneGain -> destination
+        droneSynth.disconnect();
+        droneSynth.connect(filter);
+        filter.disconnect();
+        filter.connect(droneGain);
+
+        // Connect MP3 player through its own gain
+        dronePlayer.disconnect();
+        dronePlayer.connect(playerGain);
+
+        // --- TRANSPORT SETUP ---
+        Tone.Transport.bpm.value = 80;
+
+        // Schedule metronome clicks on every quarter note
+        Tone.Transport.scheduleRepeat((time) => {
+            metronome.triggerAttackRelease('C2', '16n', time);
+        }, '4n');
+
+        // --- DOM ELEMENTS ---
+        const tempoNumber = document.getElementById('tempoNumber');
+        const tempoSlider = document.getElementById('tempoSlider');
+        const droneRootSelect = document.getElementById('droneRoot');
+        const droneVolumeSlider = document.getElementById('droneVolume');
+        const metronomeVolumeSlider = document.getElementById('metronomeVolume');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusDiv = document.getElementById('status');
+
+        // --- HELPER FUNCTIONS ---
+
+        // Update status message
+        function setStatus(message, isPlaying = false) {
+            statusDiv.textContent = message;
+            if (isPlaying) {
+                statusDiv.classList.add('playing');
+            } else {
+                statusDiv.classList.remove('playing');
+            }
+        }
+
+        // Start the drone with current root note
+        function startDrone() {
+            const root = droneRootSelect.value;
+            
+            // Stop everything first
+            droneSynth.releaseAll();
+            dronePlayer.stop();
+            
+            // If D, use MP3 player; otherwise use synth
+            if (root === 'D') {
+                dronePlayer.start();
+            } else {
+                const notes = NOTE_MAP[root];
+                droneSynth.triggerAttack(notes);
+            }
+        }
+
+        // Stop the drone
+        function stopDrone() {
+            droneSynth.releaseAll();
+            dronePlayer.stop();
+        }
+
+        // --- EVENT HANDLERS ---
+
+        // Sync tempo number input and slider - instant updates
+        tempoNumber.addEventListener('input', (e) => {
+            const value = Math.max(40, Math.min(200, parseInt(e.target.value) || 40));
+            tempoNumber.value = value;
+            tempoSlider.value = value;
+            Tone.Transport.bpm.value = value;
+        });
+
+        tempoSlider.addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            tempoNumber.value = value;
+            Tone.Transport.bpm.value = value;
+        });
+
+        // Update drone root note (restart drone if playing) - instant
+        droneRootSelect.addEventListener('change', () => {
+            if (isPlaying) {
+                stopDrone();
+                startDrone();
+            }
+        });
+
+        // Update drone volume - controls both synth and MP3 player
+        droneVolumeSlider.addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            const gain = (value / 100) * 0.8; // Increased from 0.4 to 0.8
+            droneGain.gain.value = gain;
+            playerGain.gain.value = gain;
+        });
+
+        // Update metronome volume
+        metronomeVolumeSlider.addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            const gain = (value / 100) * 1.2;
+            metronomeGain.gain.value = gain;
+        });
+
+        // Start button: Initialize audio context and start transport + drone
+        startBtn.addEventListener('click', async () => {
+            if (isPlaying) return;
+
+            try {
+                // Initialize Tone.js audio context (required for mobile browsers)
+                if (!audioInitialized) {
+                    await Tone.start();
+                    await Tone.loaded(); // Wait for MP3 to load
+                    audioInitialized = true;
+                    console.log('Audio context initialized');
+                }
+
+                // Start transport and drone immediately
+                Tone.Transport.start();
+                startDrone();
+                
+                isPlaying = true;
+                setStatus('Playing...', true);
+                
+            } catch (error) {
+                console.error('Error starting:', error);
+                setStatus('Error starting audio');
+            }
+        });
+
+        // Stop button: Stop transport and drone immediately
+        stopBtn.addEventListener('click', () => {
+            if (!isPlaying) return;
+
+            Tone.Transport.stop();
+            stopDrone();
+            
+            isPlaying = false;
+            setStatus('Stopped');
+        });
+
+        console.log('MetroDrone initialized and ready');
+    </script>
+</body>
+</html>
