@@ -453,15 +453,14 @@
           });
 
           // Map UI note names to MP3 file names
-          // URL encode the # character as %23 to avoid URL parsing issues
           const MP3_FILE_MAP = {
               'C':  'drone_C.mp3',
-              'C#': 'drone_C%23.mp3',
+              'C#': 'drone_C#.mp3',
               'D':  'drone_D.mp3',
               'D#': 'drone_Eb.mp3',
               'E':  'drone_E.mp3',
               'F':  'drone_F.mp3',
-              'F#': 'drone_F%23.mp3',
+              'F#': 'drone_F#.mp3',
               'G':  'drone_G.mp3',
               'G#': 'drone_Ab.mp3',
               'A':  'drone_A.mp3',
@@ -475,9 +474,12 @@
 
           // Initialize players for all notes
           Object.keys(MP3_FILE_MAP).forEach(note => {
+              // Encode the filename to handle special characters like # properly
+              const encodedUrl = encodeURI(MP3_FILE_MAP[note]);
+
               dronePlayers[note] = {
                   A: new Tone.Player({
-                      url: MP3_FILE_MAP[note],
+                      url: encodedUrl,
                       onload: () => {
                           console.log(`${note} drone MP3 loaded successfully`);
                       },
@@ -486,7 +488,7 @@
                       }
                   }),
                   B: new Tone.Player({
-                      url: MP3_FILE_MAP[note]
+                      url: encodedUrl
                   })
               };
           });
@@ -495,11 +497,10 @@
           const CROSSFADE_TIME = 4;
 
           // Gain nodes for volume control
-          // Metronome needs more gain since it's a short transient vs sustained drone
-          // Doubled all gain values for louder overall volume
-          const metronomeGain = new Tone.Gain(1.0).toDestination();
-          const warmSynthGain = new Tone.Gain(0.3).toDestination();
-          const pureSynthGain = new Tone.Gain(0.3).toDestination();
+          // Increased all gain values to match MP3 volume levels
+          const metronomeGain = new Tone.Gain(4.0).toDestination();
+          const warmSynthGain = new Tone.Gain(0.6).toDestination();
+          const pureSynthGain = new Tone.Gain(0.6).toDestination();
           const playerGain = new Tone.Gain(0.3).toDestination();
 
           // Connect audio chain: metronome -> metronomeGain -> destination
@@ -621,7 +622,7 @@
 
               // Get current volume setting
               const sliderValue = parseInt(droneVolumeSlider.value);
-              const gain = (sliderValue / 100) * 0.6;
+              const gain = (sliderValue / 100) * 1.2; // Increased from 0.6 to 1.2
 
               // Mute all drone sources
               warmSynthGain.gain.value = 0;
@@ -713,7 +714,7 @@
           droneVolumeSlider.addEventListener('input', (e) => {
               const value = parseInt(e.target.value);
               // Using linear scaling for more predictable control
-              const gain = (value / 100) * 0.6; // Max 0.6 gain (increased from 0.4)
+              const gain = (value / 100) * 1.2; // Max 1.2 gain (doubled from 0.6)
 
               // Only update the gain for the active source
               if (droneSource === 'mp3') {
@@ -730,7 +731,7 @@
           metronomeVolumeSlider.addEventListener('input', (e) => {
               const value = parseInt(e.target.value);
               // Using linear scaling with higher multiplier
-              const gain = (value / 100) * 2.0; // Max 2.0 gain (increased for louder volume)
+              const gain = (value / 100) * 8.0; // Max 8.0 gain (doubled again to match drone volume)
               metronomeGain.gain.value = gain; // Instant, no ramp
           });
 
@@ -739,12 +740,19 @@
               if (isPlaying) return; // Already playing, ignore
 
               try {
-                  // Initialize Tone.js audio context (required for mobile browsers)
+                  // Initialize Tone.js audio context (required for mobile browsers and Safari)
                   if (!audioInitialized) {
                       await Tone.start();
+                      // Safari-specific: ensure context is actually running
+                      if (Tone.context.state !== 'running') {
+                          await Tone.context.resume();
+                      }
                       audioInitialized = true;
-                      console.log('Audio context initialized');
+                      console.log('Audio context initialized, state:', Tone.context.state);
                   }
+
+                  // Small delay for Safari to fully initialize
+                  await new Promise(resolve => setTimeout(resolve, 100));
 
                   // Start transport and drone immediately
                   Tone.Transport.start();
@@ -768,6 +776,29 @@
 
               isPlaying = false;
               setStatus('Stopped');
+          });
+
+          // Initialize volume gains based on slider default values (50)
+          const initialDroneGain = (50 / 100) * 1.2; // 50% of max 1.2
+          const initialMetronomeGain = (50 / 100) * 8.0; // 50% of max 8.0
+          warmSynthGain.gain.value = initialDroneGain;
+          pureSynthGain.gain.value = initialDroneGain;
+          playerGain.gain.value = initialDroneGain;
+          metronomeGain.gain.value = initialMetronomeGain;
+
+          // Spacebar to start/stop
+          document.addEventListener('keydown', (e) => {
+              // Check if spacebar is pressed
+              if (e.code === 'Space' || e.key === ' ') {
+                  // Always handle spacebar for start/stop, even if a control has focus
+                  e.preventDefault(); // Prevent page scroll and default actions
+
+                  if (isPlaying) {
+                      stopBtn.click(); // Trigger stop
+                  } else {
+                      startBtn.click(); // Trigger start
+                  }
+              }
           });
 
           console.log('MetroDrone initialized and ready');
