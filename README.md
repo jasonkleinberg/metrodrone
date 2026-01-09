@@ -13,17 +13,17 @@ Use this iframe code to embed MetroDrone on your website:
 ```html
 <iframe src="https://jasonkleinberg.github.io/metrodrone/"
         width="100%"
-        height="520px"
+        height="620px"
         style="border: none;">
 </iframe>
 ```
 
-For tighter spaces (like tabs), you can reduce the height further:
+For taller containers with more headroom:
 
 ```html
 <iframe src="https://jasonkleinberg.github.io/metrodrone/"
         width="100%"
-        height="500px"
+        height="680px"
         style="border: none;">
 </iframe>
 ```
