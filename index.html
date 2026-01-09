@@ -333,7 +333,6 @@
               <select id="droneSource">
                   <option value="mp3" selected>MP3 (Recorded)</option>
                   <option value="warm">Synth - Warm Pad</option>
-                  <option value="pure">Synth - Pure Sine</option>
               </select>
           </div>
 
@@ -385,18 +384,18 @@
           // --- NOTE MAPPING: Root + Fifth for each chromatic root ---
           // Maps each root note to [root, fifth] in appropriate octaves for fiddle practice
           const NOTE_MAP = {
-              'C':  ['C3', 'G3'],
-              'C#': ['C#3', 'G#3'],
-              'D':  ['D3', 'A3'],
-              'D#': ['D#3', 'A#3'],
-              'E':  ['E3', 'B3'],
-              'F':  ['F3', 'C4'],
-              'F#': ['F#3', 'C#4'],
-              'G':  ['G2', 'D3'],
-              'G#': ['G#2', 'D#3'],
-              'A':  ['A2', 'E3'],
-              'A#': ['A#2', 'F3'],
-              'B':  ['B2', 'F#3']
+              'C':  ['C4', 'G4'],
+              'C#': ['C#4', 'G#4'],
+              'D':  ['D4', 'A4'],
+              'D#': ['D#4', 'A#4'],
+              'E':  ['E4', 'B4'],
+              'F':  ['F4', 'C5'],
+              'F#': ['F#4', 'C#5'],
+              'G':  ['G3', 'D4'],
+              'G#': ['G#3', 'D#4'],
+              'A':  ['A3', 'E4'],
+              'A#': ['A#3', 'F4'],
+              'B':  ['B3', 'F#4']
           };
 
           // --- STATE ---
@@ -617,16 +616,14 @@
 
               // ALWAYS stop everything first
               warmSynth.releaseAll();
-              pureSynth.triggerRelease(); // Pure synth is mono, not poly
               stopCrossfadeDrone();
 
               // Get current volume setting
               const sliderValue = parseInt(droneVolumeSlider.value);
-              const gain = (sliderValue / 100) * 1.2; // Increased from 0.6 to 1.2
+              const gain = (sliderValue / 100) * 2.0; // Increased to 2.0 to match MP3 volume
 
               // Mute all drone sources
               warmSynthGain.gain.value = 0;
-              pureSynthGain.gain.value = 0;
               playerGain.gain.value = 0;
 
               // Use selected drone source - ONLY unmute and trigger the selected one
@@ -643,13 +640,17 @@
                   }
               } else if (droneSource === 'warm') {
                   console.log(`Using warm synth for ${root} drone`);
-                  warmSynthGain.gain.value = gain; // Unmute only warm synth
-                  warmSynth.triggerAttack(notes);
-              } else if (droneSource === 'pure') {
-                  console.log(`Using pure sine synth for ${root} drone`);
-                  pureSynthGain.gain.value = gain; // Unmute only pure synth
-                  // Pure synth only plays ROOT note (first note), not the fifth
-                  pureSynth.triggerAttack(notes[0]);
+                  warmSynthGain.gain.value = gain * 0.7; // Unmute only warm synth (30% quieter to match MP3)
+                  // Add lower octave notes for thickness
+                  // Create lower octave versions by parsing note and dropping octave number
+                  const lowerNotes = notes.map(note => {
+                      const noteName = note.slice(0, -1); // Get note name without octave
+                      const octave = parseInt(note.slice(-1)); // Get octave number
+                      return noteName + (octave - 1); // Drop by one octave
+                  });
+                  // Combine original notes with lower octave for thick, rich sound
+                  const thickNotes = [...notes, ...lowerNotes];
+                  warmSynth.triggerAttack(thickNotes);
               }
           }
 
@@ -672,7 +673,6 @@
           // Stop the drone
           function stopDrone() {
               warmSynth.releaseAll();
-              pureSynth.triggerRelease(); // Pure synth is mono, not poly
               stopCrossfadeDrone();
           }
 
@@ -714,15 +714,13 @@
           droneVolumeSlider.addEventListener('input', (e) => {
               const value = parseInt(e.target.value);
               // Using linear scaling for more predictable control
-              const gain = (value / 100) * 1.2; // Max 1.2 gain (doubled from 0.6)
+              const gain = (value / 100) * 2.0; // Max 2.0 gain to match MP3 volume
 
               // Only update the gain for the active source
               if (droneSource === 'mp3') {
                   playerGain.gain.value = gain;
               } else if (droneSource === 'warm') {
-                  warmSynthGain.gain.value = gain;
-              } else if (droneSource === 'pure') {
-                  pureSynthGain.gain.value = gain;
+                  warmSynthGain.gain.value = gain * 0.7; // 30% quieter to match MP3
               }
           });
 
@@ -731,7 +729,7 @@
           metronomeVolumeSlider.addEventListener('input', (e) => {
               const value = parseInt(e.target.value);
               // Using linear scaling with higher multiplier
-              const gain = (value / 100) * 8.0; // Max 8.0 gain (doubled again to match drone volume)
+              const gain = (value / 100) * 36.0; // Max 36.0 gain - metronome needs much higher gain to compete with continuous drone
               metronomeGain.gain.value = gain; // Instant, no ramp
           });
 
@@ -779,10 +777,9 @@
           });
 
           // Initialize volume gains based on slider default values (50)
-          const initialDroneGain = (50 / 100) * 1.2; // 50% of max 1.2
-          const initialMetronomeGain = (50 / 100) * 8.0; // 50% of max 8.0
-          warmSynthGain.gain.value = initialDroneGain;
-          pureSynthGain.gain.value = initialDroneGain;
+          const initialDroneGain = (50 / 100) * 2.0; // 50% of max 2.0
+          const initialMetronomeGain = (50 / 100) * 36.0; // 50% of max 36.0
+          warmSynthGain.gain.value = initialDroneGain * 0.7; // 30% quieter to match MP3
           playerGain.gain.value = initialDroneGain;
           metronomeGain.gain.value = initialMetronomeGain;
 
