@@ -487,15 +487,29 @@
               dronePlayers[note] = {
                   A: new Tone.Player({
                       url: encodedUrl,
+                      autostart: false,
+                      loop: false,
+                      fadeIn: 0.01,
+                      fadeOut: 0.01,
                       onload: () => {
-                          console.log(`${note} drone MP3 loaded successfully`);
+                          console.log(`${note} drone MP3 (A) loaded successfully`);
                       },
                       onerror: (error) => {
-                          console.error(`Error loading ${note} drone MP3:`, error);
+                          console.error(`Error loading ${note} drone MP3 (A):`, error);
                       }
                   }),
                   B: new Tone.Player({
-                      url: encodedUrl
+                      url: encodedUrl,
+                      autostart: false,
+                      loop: false,
+                      fadeIn: 0.01,
+                      fadeOut: 0.01,
+                      onload: () => {
+                          console.log(`${note} drone MP3 (B) loaded successfully`);
+                      },
+                      onerror: (error) => {
+                          console.error(`Error loading ${note} drone MP3 (B):`, error);
+                      }
                   })
               };
           });
@@ -539,8 +553,17 @@
           Tone.Transport.bpm.value = 80;
 
           // Schedule metronome clicks on every quarter note
+          let clickCount = 0;
           Tone.Transport.scheduleRepeat((time) => {
-              metronome.triggerAttackRelease('C2', '16n', time);
+              try {
+                  metronome.triggerAttackRelease('C2', '16n', time);
+                  clickCount++;
+                  if (clickCount <= 5 || clickCount % 10 === 0) {
+                      console.log(`Metronome click #${clickCount} at time ${time}`);
+                  }
+              } catch (error) {
+                  console.error(`Error triggering metronome:`, error);
+              }
           }, '4n');
 
           // --- DOM ELEMENTS ---
@@ -585,42 +608,66 @@
                   return false;
               }
 
+              // Check if player has a valid buffer
+              if (!playerA.buffer) {
+                  console.error(`${note} player has no buffer`);
+                  return false;
+              }
+
               // Get MP3 duration
               const duration = playerA.buffer.duration;
               console.log(`${note} MP3 duration:`, duration, 'seconds');
 
-              // Start first player immediately
-              playerA.volume.value = 0; // Start at full volume (0 dB)
-              playerA.start();
-              currentPlayer = 'A';
+              // Ensure players are connected and ready
+              if (!playerA.output || !playerB.output) {
+                  console.error(`${note} players not properly connected`);
+                  return false;
+              }
 
-              // Set up crossfade loop
-              // Start next player CROSSFADE_TIME seconds before current one ends
-              const loopTime = (duration - CROSSFADE_TIME) * 1000; // Convert to milliseconds
+              try {
+                  // Start first player immediately
+                  playerA.volume.value = 0; // Start at full volume (0 dB)
+                  playerA.start();
+                  console.log(`Player A started for ${note}`);
+                  currentPlayer = 'A';
 
-              crossfadeInterval = setInterval(() => {
-                  if (currentPlayer === 'A') {
-                      // Start player B, it will crossfade with A
-                      playerB.start();
-                      playerB.volume.value = 0;
-                      currentPlayer = 'B';
-                      console.log(`Crossfading ${note} to player B`);
-                  } else {
-                      // Start player A, it will crossfade with B
-                      playerA.start();
-                      playerA.volume.value = 0;
-                      currentPlayer = 'A';
-                      console.log(`Crossfading ${note} to player A`);
-                  }
-              }, loopTime);
+                  // Set up crossfade loop
+                  // Start next player CROSSFADE_TIME seconds before current one ends
+                  const loopTime = (duration - CROSSFADE_TIME) * 1000; // Convert to milliseconds
 
-              return true;
+                  crossfadeInterval = setInterval(() => {
+                      try {
+                          if (currentPlayer === 'A') {
+                              // Start player B, it will crossfade with A
+                              playerB.start();
+                              playerB.volume.value = 0;
+                              currentPlayer = 'B';
+                              console.log(`Crossfading ${note} to player B`);
+                          } else {
+                              // Start player A, it will crossfade with B
+                              playerA.start();
+                              playerA.volume.value = 0;
+                              currentPlayer = 'A';
+                              console.log(`Crossfading ${note} to player A`);
+                          }
+                      } catch (error) {
+                          console.error(`Error in crossfade loop:`, error);
+                      }
+                  }, loopTime);
+
+                  return true;
+              } catch (error) {
+                  console.error(`Error starting player:`, error);
+                  return false;
+              }
           }
 
           // Start the drone with current root note
           function startDrone() {
               const root = droneRootSelect.value;
               const notes = NOTE_MAP[root];
+
+              console.log(`Starting drone for ${root}, source: ${droneSource}`);
 
               // ALWAYS stop everything first
               warmSynth.releaseAll();
@@ -639,15 +686,16 @@
                   // Try to use MP3 first, fall back to warm synth if not available
                   const mp3Started = startCrossfadeDrone(root);
                   if (mp3Started) {
-                      console.log(`Using MP3 for ${root} drone`);
+                      console.log(`Using MP3 for ${root} drone, setting gain to ${gain}`);
                       playerGain.gain.value = gain; // Unmute only MP3
+                      console.log(`Player gain set to ${playerGain.gain.value}`);
                   } else {
-                      console.log(`MP3 not loaded for ${root}, using warm synth`);
+                      console.log(`MP3 not loaded for ${root}, using warm synth fallback`);
                       warmSynthGain.gain.value = gain; // Unmute only warm synth
                       warmSynth.triggerAttack(notes);
                   }
               } else if (droneSource === 'warm') {
-                  console.log(`Using warm synth for ${root} drone`);
+                  console.log(`Using warm synth for ${root} drone, setting gain to ${gain * 0.7}`);
                   warmSynthGain.gain.value = gain * 0.7; // Unmute only warm synth (30% quieter to match MP3)
                   // Add lower octave notes for thickness
                   // Create lower octave versions by parsing note and dropping octave number
@@ -659,6 +707,7 @@
                   // Combine original notes with lower octave for thick, rich sound
                   const thickNotes = [...notes, ...lowerNotes];
                   warmSynth.triggerAttack(thickNotes);
+                  console.log(`Warm synth triggered with notes: ${thickNotes.join(', ')}`);
               }
           }
 
@@ -746,30 +795,96 @@
               if (isPlaying) return; // Already playing, ignore
 
               try {
+                  setStatus('Loading audio...', false);
+
                   // Initialize Tone.js audio context (required for mobile browsers and Safari)
                   if (!audioInitialized) {
+                      console.log('Initializing audio context...');
                       await Tone.start();
+                      console.log('Tone.start() completed, state:', Tone.context.state);
+
                       // Safari-specific: ensure context is actually running
                       if (Tone.context.state !== 'running') {
+                          console.log('Context not running, attempting resume...');
                           await Tone.context.resume();
+                          console.log('Context resumed, state:', Tone.context.state);
                       }
+
+                      // Additional mobile Safari fix: force a sound to unlock audio
+                      const unlockOsc = new Tone.Oscillator(440, 'sine').toDestination();
+                      unlockOsc.volume.value = -Infinity; // Silent
+                      unlockOsc.start();
+                      unlockOsc.stop('+0.1');
+                      unlockOsc.dispose();
+
                       audioInitialized = true;
                       console.log('Audio context initialized, state:', Tone.context.state);
                   }
 
-                  // Small delay for Safari to fully initialize
-                  await new Promise(resolve => setTimeout(resolve, 100));
+                  // Wait for the selected drone MP3 to load if using mp3 source
+                  if (droneSource === 'mp3') {
+                      const root = droneRootSelect.value;
+                      const playerA = dronePlayers[root].A;
 
-                  // Start transport and drone immediately
+                      if (!playerA.loaded) {
+                          console.log(`Waiting for ${root} MP3 to load...`);
+                          await new Promise((resolve, reject) => {
+                              const timeout = setTimeout(() => {
+                                  reject(new Error('MP3 loading timeout'));
+                              }, 5000);
+
+                              // Check if already loaded
+                              if (playerA.loaded) {
+                                  clearTimeout(timeout);
+                                  resolve();
+                                  return;
+                              }
+
+                              // Wait for load event
+                              const checkLoaded = setInterval(() => {
+                                  if (playerA.loaded) {
+                                      clearInterval(checkLoaded);
+                                      clearTimeout(timeout);
+                                      resolve();
+                                  }
+                              }, 100);
+                          });
+                      }
+                      console.log(`${root} MP3 loaded successfully`);
+                  }
+
+                  // Additional delay for mobile browsers to fully stabilize
+                  await new Promise(resolve => setTimeout(resolve, 200));
+
+                  // Verify audio context is still running before starting
+                  if (Tone.context.state !== 'running') {
+                      console.log('Context stopped, resuming again...');
+                      await Tone.context.resume();
+                  }
+
+                  // Start transport and drone
+                  console.log('Starting transport and drone...');
+                  console.log('Transport state before start:', Tone.Transport.state);
                   Tone.Transport.start();
+                  console.log('Transport state after start:', Tone.Transport.state);
+                  console.log('Transport BPM:', Tone.Transport.bpm.value);
+
                   startDrone();
+
+                  // Verify metronome gain is set correctly
+                  console.log('Metronome gain value:', metronomeGain.gain.value);
 
                   isPlaying = true;
                   setStatus('Playing...', true);
+                  console.log('=== Playback started successfully ===');
+                  console.log('Audio context state:', Tone.context.state);
+                  console.log('Expected: You should hear metronome clicks at', Tone.Transport.bpm.value, 'BPM');
+                  console.log('Watch console for "Metronome click" messages');
 
               } catch (error) {
                   console.error('Error starting:', error);
-                  setStatus('Error starting audio');
+                  setStatus('Error: ' + error.message);
+                  isPlaying = false;
               }
           });
 
@@ -806,7 +921,18 @@
               }
           });
 
+          // Log initialization info for debugging
+          console.log('=== MetroDrone Initialization ===');
+          console.log('Tone.js version:', Tone.version);
+          console.log('Audio context state:', Tone.context.state);
+          console.log('Sample rate:', Tone.context.sampleRate);
+          console.log('User agent:', navigator.userAgent);
+          console.log('Platform:', navigator.platform);
+          console.log('Touch support:', 'ontouchstart' in window);
+          console.log('MP3 files to load:', Object.keys(dronePlayers).length);
+          console.log('=================================');
           console.log('MetroDrone initialized and ready');
+          console.log('Click START to begin (this will initialize audio context)');
       </script>
   </body>
   </html>
