@@ -469,12 +469,12 @@
           // Map UI note names to MP3 file names
           const MP3_FILE_MAP = {
               'C':  'drone_C.mp3',
-              'C#': 'drone_C#.mp3',
+              'C#': 'drone_Cs.mp3',
               'D':  'drone_D.mp3',
               'D#': 'drone_Eb.mp3',
               'E':  'drone_E.mp3',
               'F':  'drone_F.mp3',
-              'F#': 'drone_F#.mp3',
+              'F#': 'drone_Fs.mp3',
               'G':  'drone_G.mp3',
               'G#': 'drone_Ab.mp3',
               'A':  'drone_A.mp3',
@@ -488,12 +488,12 @@
 
           // Initialize players for all notes
           Object.keys(MP3_FILE_MAP).forEach(note => {
-              // Encode the filename to handle special characters like # properly
-              const encodedUrl = encodeURI(MP3_FILE_MAP[note]);
+              // Get the filename (no encoding needed now that # is removed from filenames)
+              const url = MP3_FILE_MAP[note];
 
               dronePlayers[note] = {
                   A: new Tone.Player({
-                      url: encodedUrl,
+                      url: url,
                       autostart: false,
                       loop: false,
                       fadeIn: 0.01,
@@ -506,7 +506,7 @@
                       }
                   }),
                   B: new Tone.Player({
-                      url: encodedUrl,
+                      url: url,
                       autostart: false,
                       loop: false,
                       fadeIn: 0.01,
@@ -789,9 +789,16 @@
 
           // Start button: Initialize audio context and start transport + drone
           startBtn.addEventListener('click', async () => {
-              if (isPlaying) return; // Already playing, ignore
+              console.log('>>> START BUTTON CLICKED <<<');
+              console.log('isPlaying:', isPlaying);
+
+              if (isPlaying) {
+                  console.log('Already playing, ignoring click');
+                  return; // Already playing, ignore
+              }
 
               try {
+                  console.log('Starting playback initialization...');
                   setStatus('Loading audio...', false);
 
                   // Initialize Tone.js audio context (required for mobile browsers and Safari)
