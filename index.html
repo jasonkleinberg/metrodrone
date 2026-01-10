@@ -15,9 +15,16 @@
           4. Your app will be live at: https://yourusername.github.io/reponame/
           
           To embed in WordPress:
-          Use this HTML block:
-          <iframe src="https://yourusername.github.io/reponame/" width="100%" height="580px" style="border:
-  none;"></iframe>
+          Use this HTML block (IMPORTANT: include the allow attribute for mobile audio):
+          <iframe src="https://yourusername.github.io/reponame/"
+                  width="100%"
+                  height="580px"
+                  style="border: none;"
+                  allow="autoplay; microphone"></iframe>
+
+          IMPORTANT FOR MOBILE:
+          - All MP3 files MUST be uploaded to the same directory as index.html
+          - The iframe MUST have the "allow" attribute for audio to work on mobile
       -->
 
       <!-- Load Tone.js from CDN -->
@@ -818,29 +825,40 @@
 
                       if (!playerA.loaded) {
                           console.log(`Waiting for ${root} MP3 to load...`);
-                          await new Promise((resolve, reject) => {
-                              const timeout = setTimeout(() => {
-                                  reject(new Error('MP3 loading timeout'));
-                              }, 5000);
+                          try {
+                              await new Promise((resolve, reject) => {
+                                  const timeout = setTimeout(() => {
+                                      reject(new Error('MP3 loading timeout - file may not exist on server'));
+                                  }, 5000);
 
-                              // Check if already loaded
-                              if (playerA.loaded) {
-                                  clearTimeout(timeout);
-                                  resolve();
-                                  return;
-                              }
-
-                              // Wait for load event
-                              const checkLoaded = setInterval(() => {
+                                  // Check if already loaded
                                   if (playerA.loaded) {
-                                      clearInterval(checkLoaded);
                                       clearTimeout(timeout);
                                       resolve();
+                                      return;
                                   }
-                              }, 100);
-                          });
+
+                                  // Wait for load event
+                                  const checkLoaded = setInterval(() => {
+                                      if (playerA.loaded) {
+                                          clearInterval(checkLoaded);
+                                          clearTimeout(timeout);
+                                          resolve();
+                                      }
+                                  }, 100);
+                              });
+                              console.log(`${root} MP3 loaded successfully`);
+                          } catch (error) {
+                              console.error(`Failed to load ${root} MP3:`, error.message);
+                              console.log(`Falling back to warm synth for ${root}`);
+                              // Switch to warm synth as fallback
+                              droneSource = 'warm';
+                              setStatus('MP3 failed, using synth...', false);
+                              await new Promise(resolve => setTimeout(resolve, 1000));
+                          }
+                      } else {
+                          console.log(`${root} MP3 already loaded`);
                       }
-                      console.log(`${root} MP3 loaded successfully`);
                   }
 
                   // Additional delay for mobile browsers to fully stabilize
@@ -934,6 +952,31 @@
               }
           });
 
+          // Check which MP3 files are loaded after a delay
+          setTimeout(() => {
+              const loadedFiles = [];
+              const failedFiles = [];
+              Object.keys(dronePlayers).forEach(note => {
+                  if (dronePlayers[note].A.loaded) {
+                      loadedFiles.push(note);
+                  } else {
+                      failedFiles.push(note);
+                  }
+              });
+              console.log('=== MP3 Loading Status ===');
+              if (loadedFiles.length > 0) {
+                  console.log('✓ Loaded MP3s:', loadedFiles.join(', '));
+              }
+              if (failedFiles.length > 0) {
+                  console.warn('✗ Failed to load:', failedFiles.join(', '));
+                  console.warn('Make sure these files are uploaded to the server:');
+                  failedFiles.forEach(note => {
+                      console.warn(`  - ${MP3_FILE_MAP[note]}`);
+                  });
+              }
+              console.log('=========================');
+          }, 3000);
+
           // Log initialization info for debugging
           console.log('=== MetroDrone Initialization ===');
           console.log('Tone.js version:', Tone.version);
@@ -946,6 +989,7 @@
           console.log('=================================');
           console.log('MetroDrone initialized and ready');
           console.log('Click START to begin (this will initialize audio context)');
+          console.log('Checking MP3 file status in 3 seconds...');
       </script>
   </body>
   </html>
