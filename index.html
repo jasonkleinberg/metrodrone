@@ -552,19 +552,9 @@
           // --- TRANSPORT SETUP ---
           Tone.Transport.bpm.value = 80;
 
-          // Schedule metronome clicks on every quarter note
+          // Metronome click counter and scheduling
           let clickCount = 0;
-          Tone.Transport.scheduleRepeat((time) => {
-              try {
-                  metronome.triggerAttackRelease('C2', '16n', time);
-                  clickCount++;
-                  if (clickCount <= 5 || clickCount % 10 === 0) {
-                      console.log(`Metronome click #${clickCount} at time ${time}`);
-                  }
-              } catch (error) {
-                  console.error(`Error triggering metronome:`, error);
-              }
-          }, '4n');
+          let metronomeScheduled = false;
 
           // --- DOM ELEMENTS ---
           const tempoNumber = document.getElementById('tempoNumber');
@@ -862,6 +852,24 @@
                       await Tone.context.resume();
                   }
 
+                  // Schedule metronome clicks AFTER audio context is ready (critical for mobile Safari)
+                  if (!metronomeScheduled) {
+                      console.log('Scheduling metronome clicks...');
+                      Tone.Transport.scheduleRepeat((time) => {
+                          try {
+                              metronome.triggerAttackRelease('C2', '16n', time);
+                              clickCount++;
+                              if (clickCount <= 5 || clickCount % 10 === 0) {
+                                  console.log(`Metronome click #${clickCount} at time ${time}`);
+                              }
+                          } catch (error) {
+                              console.error(`Error triggering metronome:`, error);
+                          }
+                      }, '4n');
+                      metronomeScheduled = true;
+                      console.log('Metronome clicks scheduled successfully');
+                  }
+
                   // Start transport and drone
                   console.log('Starting transport and drone...');
                   console.log('Transport state before start:', Tone.Transport.state);
@@ -892,11 +900,16 @@
           stopBtn.addEventListener('click', () => {
               if (!isPlaying) return; // Not playing, safe no-op
 
+              console.log('Stopping transport and drone...');
               Tone.Transport.stop();
               stopDrone();
 
+              // Reset click counter for next session
+              clickCount = 0;
+
               isPlaying = false;
               setStatus('Stopped');
+              console.log('Stopped successfully');
           });
 
           // Initialize volume gains based on slider default values (50)
