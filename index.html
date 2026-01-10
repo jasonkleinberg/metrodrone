@@ -804,25 +804,44 @@
                   // Initialize Tone.js audio context (required for mobile browsers and Safari)
                   if (!audioInitialized) {
                       console.log('Initializing audio context...');
+                      console.log('Context state BEFORE Tone.start():', Tone.context.state);
+
                       await Tone.start();
                       console.log('Tone.start() completed, state:', Tone.context.state);
 
-                      // Safari-specific: ensure context is actually running
-                      if (Tone.context.state !== 'running') {
-                          console.log('Context not running, attempting resume...');
+                      // Aggressive resume attempts for iOS Safari in iframes
+                      let attempts = 0;
+                      while (Tone.context.state !== 'running' && attempts < 5) {
+                          attempts++;
+                          console.log(`Attempt ${attempts} to resume audio context...`);
+
+                          // Try resuming the underlying Web Audio context directly
                           await Tone.context.resume();
-                          console.log('Context resumed, state:', Tone.context.state);
+                          console.log(`After resume attempt ${attempts}, state:`, Tone.context.state);
+
+                          // Wait a bit before checking again
+                          await new Promise(resolve => setTimeout(resolve, 100));
+                      }
+
+                      if (Tone.context.state !== 'running') {
+                          console.error('❌ FAILED to start audio context after 5 attempts!');
+                          console.error('Current state:', Tone.context.state);
+                          throw new Error('Audio context stuck in suspended state. This may be due to iframe restrictions.');
                       }
 
                       // Additional mobile Safari fix: force a sound to unlock audio
+                      console.log('Creating unlock oscillator...');
                       const unlockOsc = new Tone.Oscillator(440, 'sine').toDestination();
                       unlockOsc.volume.value = -Infinity; // Silent
                       unlockOsc.start();
                       unlockOsc.stop('+0.1');
                       unlockOsc.dispose();
+                      console.log('Unlock oscillator created and disposed');
 
                       audioInitialized = true;
-                      console.log('Audio context initialized, state:', Tone.context.state);
+                      console.log('✓ Audio context initialized successfully, state:', Tone.context.state);
+                  } else {
+                      console.log('Audio already initialized, state:', Tone.context.state);
                   }
 
                   // Wait for the selected drone MP3 to load if using mp3 source
