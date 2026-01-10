@@ -329,6 +329,11 @@
   </head>
   <body>
       <div class="container">
+          <!-- iOS Silent Switch Warning (only shown on iOS) -->
+          <div id="iosWarning" style="display: none; background: #ff6b6b; color: white; padding: 12px; border-radius: 12px; margin-bottom: 15px; text-align: center; font-size: 0.9em; font-weight: 600;">
+              📱 <strong>iOS Users:</strong> Turn OFF Silent Mode (toggle switch on left side) to hear audio!
+          </div>
+
           <div class="logo-container">
               <img src="MetroDrone_2.png" alt="MetroDrone" class="logo">
           </div>
@@ -1003,6 +1008,18 @@
               console.log('=========================');
           }, 3000);
 
+          // Detect iOS and show warning about silent switch
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+          if (isIOS) {
+              const warning = document.getElementById('iosWarning');
+              if (warning) {
+                  warning.style.display = 'block';
+                  console.log('iOS detected - showing silent switch warning');
+              }
+          }
+
           // Log initialization info for debugging
           console.log('=== MetroDrone Initialization ===');
           console.log('Tone.js version:', Tone.version);
@@ -1011,6 +1028,7 @@
           console.log('User agent:', navigator.userAgent);
           console.log('Platform:', navigator.platform);
           console.log('Touch support:', 'ontouchstart' in window);
+          console.log('iOS device:', isIOS);
           console.log('MP3 files to load:', Object.keys(dronePlayers).length);
           console.log('=================================');
           console.log('MetroDrone initialized and ready');
