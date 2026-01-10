@@ -14,9 +14,12 @@ Use this iframe code to embed MetroDrone on your website:
 <iframe src="https://jasonkleinberg.github.io/metrodrone/"
         width="100%"
         height="620px"
-        style="border: none;">
+        style="border: none;"
+        allow="autoplay; microphone">
 </iframe>
 ```
+
+**Important:** The `allow="autoplay; microphone"` attribute is **required** for audio to work on mobile browsers.
 
 For taller containers with more headroom:
 
@@ -24,7 +27,8 @@ For taller containers with more headroom:
 <iframe src="https://jasonkleinberg.github.io/metrodrone/"
         width="100%"
         height="680px"
-        style="border: none;">
+        style="border: none;"
+        allow="autoplay; microphone">
 </iframe>
 ```
 
@@ -56,15 +60,40 @@ For taller containers with more headroom:
 - **Web Audio API** - For precise audio timing and synthesis
 - **GitHub Pages** - Free hosting for the live app
 
+## Mobile Compatibility
+
+MetroDrone is fully compatible with mobile devices, including iOS Safari. However, there are some important notes:
+
+### iOS Silent Switch
+
+**Important for iOS users:** The app uses the Web Audio API, which respects the iPhone/iPad silent switch. If your device is in silent mode (orange indicator on the side switch), you **will not hear audio** even though the app is working correctly.
+
+**Solution:** Turn off silent mode by toggling the switch on the left side of your device so the orange indicator disappears.
+
+A warning banner will automatically appear on iOS devices to remind users about this.
+
+### Audio Permissions in Iframes
+
+If embedding MetroDrone in an iframe, you **must** include the `allow="autoplay; microphone"` attribute for audio to work on mobile browsers. See the embedding examples above.
+
 ## Recent Improvements
 
+### Mobile Safari Compatibility (January 2026)
+- Fixed audio initialization for iOS Safari and mobile browsers
+- Added iOS silent switch detection and warning banner
+- Implemented aggressive audio context unlock for iframe compatibility
+- Moved Transport scheduling to after audio context initialization
+- Added comprehensive console logging for debugging mobile issues
+- Fixed MP3 filename issues with special characters (C# → Cs, F# → Fs)
+
+### Audio Quality & Performance
 - Raised Warm Pad synth pitch by one octave for better range and reduced distortion
 - Added octave doubling to Warm Pad for thicker, richer sound
 - Removed Pure Sine option (can be re-added if needed)
 - Increased synth volume to better match MP3 recordings
 - Significantly boosted metronome volume (36x multiplier) to compete with continuous drones
 - Fine-tuned Warm Pad to be 30% quieter than base volume to match MP3 level
-- Implemented seamless crossfade looping for MP3 drones
+- Implemented seamless crossfade looping for MP3 drones with 4-second overlap
 
 ## Adding New MP3 Drone Sounds
 
@@ -83,12 +112,12 @@ If you want to create and add new drone recordings (e.g., Tambura, different ins
 3. **Name your files** using this exact format:
    ```
    drone_C.mp3
-   drone_C#.mp3
+   drone_Cs.mp3   (note: Cs, not C#)
    drone_D.mp3
    drone_Eb.mp3   (note: Eb, not D#)
    drone_E.mp3
    drone_F.mp3
-   drone_F#.mp3
+   drone_Fs.mp3   (note: Fs, not F#)
    drone_G.mp3
    drone_Ab.mp3   (note: Ab, not G#)
    drone_A.mp3
@@ -96,7 +125,9 @@ If you want to create and add new drone recordings (e.g., Tambura, different ins
    drone_B.mp3
    ```
 
-   **Important:** Use `Eb`, `Ab`, and `Bb` for the flat notes (not `D#`, `G#`, `A#`)
+   **Important:**
+   - Use `Cs` and `Fs` for C# and F# (the `#` character causes issues with GitHub Pages URLs)
+   - Use `Eb`, `Ab`, and `Bb` for the flat notes (not `D#`, `G#`, `A#`)
 
 ### Step 2: Add Files to Repository
 
@@ -156,12 +187,12 @@ metrodrone/
 ├── drone_B.mp3
 ├── drone_Bb.mp3
 ├── drone_C.mp3
-├── drone_C#.mp3
+├── drone_Cs.mp3           # C# (using Cs to avoid URL encoding issues)
 ├── drone_D.mp3
 ├── drone_E.mp3
 ├── drone_Eb.mp3
 ├── drone_F.mp3
-├── drone_F#.mp3
+├── drone_Fs.mp3           # F# (using Fs to avoid URL encoding issues)
 ├── drone_G.mp3
 ├── MetroDrone_2.png       # Logo image
 └── README.md              # This file
