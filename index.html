@@ -222,6 +222,59 @@
               margin-top: 0;
           }
 
+          .string-buttons {
+              display: flex;
+              gap: 8px;
+          }
+
+          .string-buttons .string-btn {
+              flex: 1;
+              padding: 10px 4px;
+              font-size: 1em;
+              font-weight: 700;
+              border: 3px solid transparent;
+              border-radius: 12px;
+              background: linear-gradient(white, white) padding-box,
+                          linear-gradient(135deg, #667eea, #764ba2) border-box;
+              color: #667eea;
+              cursor: pointer;
+              text-transform: none;
+              letter-spacing: 0;
+              transition: all 0.2s ease;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              line-height: 1.1;
+          }
+
+          .string-buttons .string-btn small {
+              font-size: 0.55em;
+              font-weight: 600;
+              color: #999;
+              position: relative;
+              z-index: 1;
+          }
+
+          .string-buttons .string-btn:hover {
+              transform: translateY(-2px);
+              box-shadow: 0 6px 16px rgba(102, 126, 234, 0.3);
+          }
+
+          .string-buttons .string-btn.active {
+              background: linear-gradient(135deg, #667eea, #764ba2) padding-box,
+                          linear-gradient(135deg, #667eea, #764ba2) border-box;
+              color: white;
+          }
+
+          .string-buttons .string-btn.active small {
+              color: rgba(255, 255, 255, 0.8);
+          }
+
+          .tuning-note-inputs {
+              display: flex;
+              gap: 12px;
+          }
+
           .transport-buttons {
               display: flex;
               gap: 15px;
@@ -361,12 +414,12 @@
               <label for="droneSource">Drone source</label>
               <select id="droneSource">
                   <option value="mp3" selected>Strings</option>
-                  <option value="warm">Warm Pad</option>
+                  <option value="tuning">Tuning Tone</option>
               </select>
           </div>
 
           <!-- Drone Root Note -->
-          <div class="control-group">
+          <div class="control-group" id="droneRootGroup">
               <label for="droneRoot">Drone root</label>
               <select id="droneRoot">
                   <option value="C">C</option>
@@ -382,6 +435,41 @@
                   <option value="A#">A#</option>
                   <option value="B">B</option>
               </select>
+          </div>
+
+          <!-- Tuning Tone Controls (hidden unless Tuning Tone source is selected) -->
+          <div class="control-group" id="tuningControls" style="display: none;">
+              <label>Open strings</label>
+              <div class="string-buttons">
+                  <button type="button" class="string-btn" data-note="C" data-octave="3">C<small>viola</small></button>
+                  <button type="button" class="string-btn" data-note="G" data-octave="3">G</button>
+                  <button type="button" class="string-btn active" data-note="D" data-octave="4">D</button>
+                  <button type="button" class="string-btn" data-note="A" data-octave="4">A</button>
+                  <button type="button" class="string-btn" data-note="E" data-octave="5">E</button>
+              </div>
+              <label for="tuningNote" style="margin-top: 12px;">Any note (C3&ndash;D6)</label>
+              <div class="tuning-note-inputs">
+                  <select id="tuningNote">
+                      <option value="C">C</option>
+                      <option value="C#">C#</option>
+                      <option value="D" selected>D</option>
+                      <option value="D#">D#</option>
+                      <option value="E">E</option>
+                      <option value="F">F</option>
+                      <option value="F#">F#</option>
+                      <option value="G">G</option>
+                      <option value="G#">G#</option>
+                      <option value="A">A</option>
+                      <option value="A#">A#</option>
+                      <option value="B">B</option>
+                  </select>
+                  <select id="tuningOctave">
+                      <option value="3">Low (3)</option>
+                      <option value="4" selected>Mid (4)</option>
+                      <option value="5">High (5)</option>
+                      <option value="6">Highest (6)</option>
+                  </select>
+              </div>
           </div>
 
           <!-- Drone Volume -->
@@ -430,7 +518,7 @@
           // --- STATE ---
           let isPlaying = false;
           let audioInitialized = false;
-          let droneSource = 'mp3'; // 'mp3', 'warm', or 'pure'
+          let droneSource = 'mp3'; // 'mp3' or 'tuning' ('warm' kept internally as MP3-load fallback)
 
           // --- SYNTHS & AUDIO ---
 
@@ -459,17 +547,30 @@
               }
           });
 
-          // Pure sine synth: clean sine wave for tuning/intonation practice
-          // ONLY plays root note (no fifth), instant attack, no filtering
-          const pureSynth = new Tone.Synth({
+          // Tuning tone synths: clean sine wave for tuning strings + fingers
+          // Plays ONLY the selected note (no fifth), plus a quieter sine one
+          // octave up so low notes (viola C3, G3) are audible on phone speakers
+          const tuningSynth = new Tone.Synth({
               oscillator: {
                   type: 'sine'
               },
               envelope: {
-                  attack: 0.001,
+                  attack: 0.05,
                   decay: 0,
                   sustain: 1.0,
-                  release: 0.05
+                  release: 0.1
+              }
+          });
+
+          const tuningOctaveSynth = new Tone.Synth({
+              oscillator: {
+                  type: 'sine'
+              },
+              envelope: {
+                  attack: 0.05,
+                  decay: 0,
+                  sustain: 1.0,
+                  release: 0.1
               }
           });
 
@@ -542,8 +643,12 @@
           // Increased all gain values to match MP3 volume levels
           const metronomeGain = new Tone.Gain(4.0).toDestination();
           const warmSynthGain = new Tone.Gain(0.6).toDestination();
-          const pureSynthGain = new Tone.Gain(0.6).toDestination();
+          const tuningGain = new Tone.Gain(0.6).toDestination();
+          const tuningOctaveGain = new Tone.Gain(0.6); // feeds into tuningGain, scaled below
           const playerGain = new Tone.Gain(0.3).toDestination();
+
+          // Octave harmonic is 75% quieter than the main tuning tone
+          const OCTAVE_HARMONIC_LEVEL = 0.25;
 
           // Connect audio chain: metronome -> metronomeGain -> destination
           metronome.disconnect();
@@ -555,9 +660,15 @@
           warmSynth.connect(warmFilter);
           warmFilter.connect(warmSynthGain);
 
-          // Pure synth: pureSynth -> pureSynthGain -> destination (no filter for clean tone)
-          pureSynth.disconnect();
-          pureSynth.connect(pureSynthGain);
+          // Tuning synths: main sine -> tuningGain -> destination
+          // Octave harmonic: octaveSynth -> tuningOctaveGain (fixed 25%) -> tuningGain
+          // so the volume slider scales both together
+          tuningSynth.disconnect();
+          tuningSynth.connect(tuningGain);
+          tuningOctaveSynth.disconnect();
+          tuningOctaveSynth.connect(tuningOctaveGain);
+          tuningOctaveGain.connect(tuningGain);
+          tuningOctaveGain.gain.value = OCTAVE_HARMONIC_LEVEL;
 
           // Connect all drone players to playerGain
           Object.keys(dronePlayers).forEach(note => {
@@ -582,6 +693,11 @@
           const tempoSlider = document.getElementById('tempoSlider');
           const droneSourceSelect = document.getElementById('droneSource');
           const droneRootSelect = document.getElementById('droneRoot');
+          const droneRootGroup = document.getElementById('droneRootGroup');
+          const tuningControls = document.getElementById('tuningControls');
+          const tuningNoteSelect = document.getElementById('tuningNote');
+          const tuningOctaveSelect = document.getElementById('tuningOctave');
+          const stringButtons = document.querySelectorAll('.string-btn');
           const droneVolumeSlider = document.getElementById('droneVolume');
           const metronomeVolumeSlider = document.getElementById('metronomeVolume');
           const startBtn = document.getElementById('startBtn');
@@ -673,6 +789,41 @@
               }
           }
 
+          // --- TUNING TONE HELPERS ---
+
+          const NOTE_ORDER = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+          // Get the selected tuning note, clamped to the C3-D6 range
+          function getTuningNote() {
+              let note = tuningNoteSelect.value;
+              const octave = parseInt(tuningOctaveSelect.value);
+
+              // Highest allowed note is D6 (the D on the E string)
+              if (octave === 6 && NOTE_ORDER.indexOf(note) > NOTE_ORDER.indexOf('D')) {
+                  note = 'D';
+                  tuningNoteSelect.value = 'D';
+              }
+
+              return note + octave;
+          }
+
+          // Highlight the string button matching the current picker selection (if any)
+          function syncStringButtons() {
+              const note = tuningNoteSelect.value;
+              const octave = tuningOctaveSelect.value;
+              stringButtons.forEach(btn => {
+                  const matches = btn.dataset.note === note && btn.dataset.octave === octave;
+                  btn.classList.toggle('active', matches);
+              });
+          }
+
+          // Show/hide tuning controls vs drone root based on source
+          function updateSourceUI() {
+              const isTuning = droneSource === 'tuning';
+              tuningControls.style.display = isTuning ? 'block' : 'none';
+              droneRootGroup.style.display = isTuning ? 'none' : 'block';
+          }
+
           // Start the drone with current root note
           function startDrone() {
               const root = droneRootSelect.value;
@@ -682,6 +833,8 @@
 
               // ALWAYS stop everything first
               warmSynth.releaseAll();
+              tuningSynth.triggerRelease();
+              tuningOctaveSynth.triggerRelease();
               stopCrossfadeDrone();
 
               // Get current volume setting
@@ -691,6 +844,7 @@
               // Mute all drone sources
               warmSynthGain.gain.value = 0;
               playerGain.gain.value = 0;
+              tuningGain.gain.value = 0;
 
               // Use selected drone source - ONLY unmute and trigger the selected one
               if (droneSource === 'mp3') {
@@ -719,6 +873,14 @@
                   const thickNotes = [...notes, ...lowerNotes];
                   warmSynth.triggerAttack(thickNotes);
                   console.log(`Warm synth triggered with notes: ${thickNotes.join(', ')}`);
+              } else if (droneSource === 'tuning') {
+                  const tuningNote = getTuningNote();
+                  // Octave harmonic: same note name, one octave up
+                  const octaveNote = tuningNote.slice(0, -1) + (parseInt(tuningNote.slice(-1)) + 1);
+                  console.log(`Using tuning tone: ${tuningNote} (+ octave harmonic ${octaveNote})`);
+                  tuningGain.gain.value = gain * 0.5; // sine waves sound louder than pads at equal gain
+                  tuningSynth.triggerAttack(tuningNote);
+                  tuningOctaveSynth.triggerAttack(octaveNote);
               }
           }
 
@@ -741,6 +903,8 @@
           // Stop the drone
           function stopDrone() {
               warmSynth.releaseAll();
+              tuningSynth.triggerRelease();
+              tuningOctaveSynth.triggerRelease();
               stopCrossfadeDrone();
           }
 
@@ -763,10 +927,33 @@
           // Update drone source (restart drone if playing)
           droneSourceSelect.addEventListener('change', (e) => {
               droneSource = e.target.value;
+              updateSourceUI();
               if (isPlaying) {
                   stopDrone();
                   startDrone();
               }
+          });
+
+          // Tuning note/octave pickers (restart tone if playing)
+          function onTuningSelectionChange() {
+              getTuningNote(); // clamps selection to C3-D6
+              syncStringButtons();
+              if (isPlaying && droneSource === 'tuning') {
+                  stopDrone();
+                  startDrone();
+              }
+          }
+
+          tuningNoteSelect.addEventListener('change', onTuningSelectionChange);
+          tuningOctaveSelect.addEventListener('change', onTuningSelectionChange);
+
+          // Open-string buttons: set the pickers and restart tone
+          stringButtons.forEach(btn => {
+              btn.addEventListener('click', () => {
+                  tuningNoteSelect.value = btn.dataset.note;
+                  tuningOctaveSelect.value = btn.dataset.octave;
+                  onTuningSelectionChange();
+              });
           });
 
           // Update drone root note (restart drone if playing) - instant
@@ -789,6 +976,8 @@
                   playerGain.gain.value = gain;
               } else if (droneSource === 'warm') {
                   warmSynthGain.gain.value = gain * 0.7; // 30% quieter to match MP3
+              } else if (droneSource === 'tuning') {
+                  tuningGain.gain.value = gain * 0.5; // sine waves sound louder at equal gain
               }
           });
 
@@ -915,6 +1104,8 @@
                       console.log('Scheduling metronome clicks...');
                       Tone.Transport.scheduleRepeat((time) => {
                           try {
+                              // No metronome during tuning tone - nobody tunes to a kick drum
+                              if (droneSource === 'tuning') return;
                               metronome.triggerAttackRelease('C2', '16n', time);
                               clickCount++;
                               if (clickCount <= 5 || clickCount % 10 === 0) {
@@ -976,6 +1167,10 @@
           warmSynthGain.gain.value = initialDroneGain * 0.7; // 30% quieter to match MP3
           playerGain.gain.value = initialDroneGain;
           metronomeGain.gain.value = initialMetronomeGain;
+
+          // Initialize tuning UI state
+          updateSourceUI();
+          syncStringButtons();
 
           // Spacebar to start/stop
           document.addEventListener('keydown', (e) => {
