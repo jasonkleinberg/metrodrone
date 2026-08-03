@@ -793,18 +793,32 @@
 
           const NOTE_ORDER = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
-          // Get the selected tuning note, clamped to the C3-D6 range
-          function getTuningNote() {
-              let note = tuningNoteSelect.value;
-              const octave = parseInt(tuningOctaveSelect.value);
+          // Notes that have a "Highest" (octave 6) option - ceiling is D6
+          function noteHasOctave6(note) {
+              return NOTE_ORDER.indexOf(note) <= NOTE_ORDER.indexOf('D');
+          }
 
-              // Highest allowed note is D6 (the D on the E string)
-              if (octave === 6 && NOTE_ORDER.indexOf(note) > NOTE_ORDER.indexOf('D')) {
-                  note = 'D';
-                  tuningNoteSelect.value = 'D';
+          // Get the selected tuning note, clamped to the C3-D6 range
+          // If the note has no octave 6, keep the note and drop to octave 5
+          function getTuningNote() {
+              const note = tuningNoteSelect.value;
+              let octave = parseInt(tuningOctaveSelect.value);
+
+              if (octave === 6 && !noteHasOctave6(note)) {
+                  octave = 5;
+                  tuningOctaveSelect.value = '5';
               }
 
               return note + octave;
+          }
+
+          // Hide the "Highest (6)" option when the selected note is above D
+          function updateOctaveOptions() {
+              const note = tuningNoteSelect.value;
+              const option6 = tuningOctaveSelect.querySelector('option[value="6"]');
+              const available = noteHasOctave6(note);
+              option6.disabled = !available;
+              option6.hidden = !available;
           }
 
           // Highlight the string button matching the current picker selection (if any)
@@ -936,7 +950,8 @@
 
           // Tuning note/octave pickers (restart tone if playing)
           function onTuningSelectionChange() {
-              getTuningNote(); // clamps selection to C3-D6
+              getTuningNote(); // drops octave 6 to 5 if the note has no octave 6
+              updateOctaveOptions();
               syncStringButtons();
               if (isPlaying && droneSource === 'tuning') {
                   stopDrone();
@@ -1170,6 +1185,7 @@
 
           // Initialize tuning UI state
           updateSourceUI();
+          updateOctaveOptions();
           syncStringButtons();
 
           // Spacebar to start/stop
