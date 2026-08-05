@@ -270,9 +270,42 @@
               color: rgba(255, 255, 255, 0.8);
           }
 
-          .tuning-note-inputs {
+          .tuning-layout {
               display: flex;
-              gap: 12px;
+              gap: 14px;
+              align-items: center;
+              margin-top: 12px;
+          }
+
+          .tuning-selects label {
+              margin-bottom: 0;
+          }
+
+          .tuning-selects {
+              display: flex;
+              flex-direction: column;
+              gap: 10px;
+              flex: 1;
+              min-width: 0;
+          }
+
+          .tuning-selects select {
+              padding: 10px 12px;
+              font-size: 0.95em;
+          }
+
+          .fingerboard-container {
+              display: flex;
+              justify-content: center;
+              flex-shrink: 0;
+          }
+
+          .fingerboard-container > div {
+              background: #FBF6EC;
+              border-radius: 14px;
+              padding: 10px 16px 6px 16px;
+              box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+              line-height: 0;
           }
 
           .transport-buttons {
@@ -401,7 +434,7 @@
           </div>
 
           <!-- Tempo Control -->
-          <div class="control-group">
+          <div class="control-group" id="tempoGroup">
               <label for="tempo">Tempo (BPM)</label>
               <div class="tempo-inputs">
                   <input type="number" id="tempoNumber" min="40" max="200" value="80">
@@ -411,7 +444,7 @@
 
           <!-- Drone Source -->
           <div class="control-group">
-              <label for="droneSource">Drone source</label>
+              <label for="droneSource">Drone mode</label>
               <select id="droneSource">
                   <option value="mp3" selected>Strings</option>
                   <option value="tuning">Tuning Tone</option>
@@ -441,34 +474,39 @@
           <div class="control-group" id="tuningControls" style="display: none;">
               <label>Open strings</label>
               <div class="string-buttons">
-                  <button type="button" class="string-btn" data-note="C" data-octave="3">C<small>viola</small></button>
                   <button type="button" class="string-btn" data-note="G" data-octave="3">G</button>
                   <button type="button" class="string-btn active" data-note="D" data-octave="4">D</button>
                   <button type="button" class="string-btn" data-note="A" data-octave="4">A</button>
                   <button type="button" class="string-btn" data-note="E" data-octave="5">E</button>
               </div>
-              <label for="tuningNote" style="margin-top: 12px;">Any note (C3&ndash;D6)</label>
-              <div class="tuning-note-inputs">
-                  <select id="tuningNote">
-                      <option value="C">C</option>
-                      <option value="C#">C#</option>
-                      <option value="D" selected>D</option>
-                      <option value="D#">D#</option>
-                      <option value="E">E</option>
-                      <option value="F">F</option>
-                      <option value="F#">F#</option>
-                      <option value="G">G</option>
-                      <option value="G#">G#</option>
-                      <option value="A">A</option>
-                      <option value="A#">A#</option>
-                      <option value="B">B</option>
-                  </select>
-                  <select id="tuningOctave">
-                      <option value="3">Low (3)</option>
-                      <option value="4" selected>Mid (4)</option>
-                      <option value="5">High (5)</option>
-                      <option value="6">Highest (6)</option>
-                  </select>
+              <div class="tuning-layout">
+                  <div class="tuning-selects">
+                      <label for="tuningNote">Any note (C3&ndash;D6)</label>
+                      <select id="tuningNote">
+                          <option value="C">C</option>
+                          <option value="C#">C#</option>
+                          <option value="D" selected>D</option>
+                          <option value="D#">D#</option>
+                          <option value="E">E</option>
+                          <option value="F">F</option>
+                          <option value="F#">F#</option>
+                          <option value="G">G</option>
+                          <option value="G#">G#</option>
+                          <option value="A">A</option>
+                          <option value="A#">A#</option>
+                          <option value="B">B</option>
+                      </select>
+                      <select id="tuningOctave">
+                          <option value="3">Low (3)</option>
+                          <option value="4" selected>Mid (4)</option>
+                          <option value="5">High (5)</option>
+                          <option value="6">Highest (6)</option>
+                      </select>
+                  </div>
+                  <!-- Live fingerboard diagram showing where the tuning note lives -->
+                  <div class="fingerboard-container">
+                      <div id="fingerboardDisplay"></div>
+                  </div>
               </div>
           </div>
 
@@ -479,7 +517,7 @@
           </div>
 
           <!-- Metronome Volume -->
-          <div class="control-group">
+          <div class="control-group" id="metronomeVolumeGroup">
               <label for="metronomeVolume">Metronome volume</label>
               <input type="range" id="metronomeVolume" min="0" max="100" value="50">
           </div>
@@ -694,6 +732,9 @@
           const droneSourceSelect = document.getElementById('droneSource');
           const droneRootSelect = document.getElementById('droneRoot');
           const droneRootGroup = document.getElementById('droneRootGroup');
+          const tempoGroup = document.getElementById('tempoGroup');
+          const metronomeVolumeGroup = document.getElementById('metronomeVolumeGroup');
+          const fingerboardDisplay = document.getElementById('fingerboardDisplay');
           const tuningControls = document.getElementById('tuningControls');
           const tuningNoteSelect = document.getElementById('tuningNote');
           const tuningOctaveSelect = document.getElementById('tuningOctave');
@@ -821,6 +862,113 @@
               option6.hidden = !available;
           }
 
+          // --- FINGERBOARD DIAGRAM ---
+          // Brand-matched to the Chord Backup Handbook diagrams
+          // (cream / FiddleHed red / ink, Karla-style type)
+
+          const FB_RED = '#990034';
+          const FB_INK = '#1d1a16';
+          const FB_GRAY = '#666666';
+          const FB_FAINT = '#d8cfbe';
+          const FB_CREAM = '#FBF6EC';
+          const FB_FONT = "Karla, -apple-system, BlinkMacSystemFont, sans-serif";
+
+          // Strings as [label, absolute pitch value] where value = octave*12 + chromatic index
+          const VIOLIN_STRINGS = [['G', 43], ['D', 50], ['A', 57], ['E', 64]];
+          const VIOLA_STRINGS = [['C', 36], ['G', 43], ['D', 50], ['A', 57]];
+
+          // FiddleHed finger labels by semitones above the open string
+          const FINGER_LABELS = ['0', 'L1', '1', 'L2', '2', '3', 'H3', '4'];
+
+          function renderFingerboard(note, octave) {
+              const v = octave * 12 + NOTE_ORDER.indexOf(note);
+
+              // Notes below violin G3 live on the viola's C string
+              const strings = v < 43 ? VIOLA_STRINGS : VIOLIN_STRINGS;
+              const isViola = v < 43;
+
+              // Pick the string: highest string where the note sits in first position
+              // (top string also carries the high notes C6-D6)
+              let si = -1, semi = 0;
+              for (let i = strings.length - 1; i >= 0; i--) {
+                  const s = v - strings[i][1];
+                  if (s >= 0 && (s < 7 || i === strings.length - 1)) {
+                      si = i;
+                      semi = s;
+                      break;
+                  }
+              }
+              if (si < 0) return ''; // out of range, shouldn't happen
+
+              const finger = semi <= 7 ? FINGER_LABELS[semi] : null;
+              const highPos = semi > 7;
+
+              // Geometry (scaled port of the handbook renderer, reference width 68)
+              const w = 128, h = 170;
+              const k = w / 68;
+              const padX = 9 * k;
+              const top = 26 * k;
+              const bot = 26 * k;
+              const span = w - 2 * padX;
+              const xs = [];
+              for (let i = 0; i < 4; i++) xs.push(padX + span * i / 3);
+              const boardTop = top;
+              const boardBot = h - bot;
+
+              // Board normally spans 6 semitones; stretch for high notes so the dot fits
+              const semiMax = Math.max(6, semi);
+              const y = (s) => boardTop + (boardBot - boardTop) * (s / semiMax);
+
+              const out = [`<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">`];
+
+              // String labels
+              strings.forEach(([label], i) => {
+                  const on = i === si;
+                  out.push(`<text x="${xs[i].toFixed(1)}" y="${(top - 15 * k).toFixed(1)}" text-anchor="middle" font-family="${FB_FONT}" font-size="${(8.5 * k).toFixed(1)}" font-weight="${on ? '700' : '400'}" fill="${on ? FB_RED : FB_FAINT}">${label}</text>`);
+              });
+
+              // Nut
+              out.push(`<rect x="${(padX - 3 * k).toFixed(1)}" y="${(boardTop - 2.2 * k).toFixed(1)}" width="${(span + 6 * k).toFixed(1)}" height="${(2.6 * k).toFixed(1)}" fill="${FB_INK}"/>`);
+
+              // Strings
+              strings.forEach((_, i) => {
+                  const on = i === si;
+                  out.push(`<line x1="${xs[i].toFixed(1)}" y1="${boardTop.toFixed(1)}" x2="${xs[i].toFixed(1)}" y2="${boardBot.toFixed(1)}" stroke="${on ? FB_INK : FB_FAINT}" stroke-width="${((on ? 1.15 : 0.7) * k).toFixed(2)}"/>`);
+              });
+
+              // Finger dot / open marker
+              const x = xs[si];
+              if (semi === 0) {
+                  out.push(`<circle cx="${x.toFixed(1)}" cy="${(boardTop - 8 * k).toFixed(1)}" r="${(3.4 * k).toFixed(1)}" fill="none" stroke="${FB_RED}" stroke-width="${(1.3 * k).toFixed(2)}"/>`);
+              } else {
+                  const cy = y(semi);
+                  out.push(`<circle cx="${x.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(7.2 * k).toFixed(1)}" fill="${FB_RED}"/>`);
+                  if (finger) {
+                      out.push(`<text x="${x.toFixed(1)}" y="${(cy + 2.9 * k).toFixed(1)}" text-anchor="middle" font-family="${FB_FONT}" font-size="${(8 * k).toFixed(1)}" font-weight="700" fill="${FB_CREAM}">${finger}</text>`);
+                  }
+              }
+
+              // Note name below the active string
+              const displayNote = note.replace('#', '♯');
+              out.push(`<text x="${x.toFixed(1)}" y="${(boardBot + 13 * k).toFixed(1)}" text-anchor="middle" font-family="${FB_FONT}" font-size="${(8.5 * k).toFixed(1)}" font-weight="700" fill="${FB_INK}">${displayNote}</text>`);
+
+              // Caption for viola / high-position notes
+              if (isViola || highPos) {
+                  const caption = isViola ? 'viola C string' : 'high position';
+                  out.push(`<text x="${(w / 2).toFixed(1)}" y="${(h - 3 * k).toFixed(1)}" text-anchor="middle" font-family="${FB_FONT}" font-size="${(6.5 * k).toFixed(1)}" font-weight="600" fill="${FB_GRAY}">${caption}</text>`);
+              }
+
+              out.push('</svg>');
+              return out.join('');
+          }
+
+          function updateFingerboard() {
+              fingerboardDisplay.innerHTML = renderFingerboard(
+                  tuningNoteSelect.value,
+                  parseInt(tuningOctaveSelect.value)
+              );
+          }
+
           // Highlight the string button matching the current picker selection (if any)
           function syncStringButtons() {
               const note = tuningNoteSelect.value;
@@ -831,11 +979,14 @@
               });
           }
 
-          // Show/hide tuning controls vs drone root based on source
+          // Show/hide controls based on mode
+          // Tuning mode: no tempo, no metronome volume, no drone root - just the tone
           function updateSourceUI() {
               const isTuning = droneSource === 'tuning';
               tuningControls.style.display = isTuning ? 'block' : 'none';
               droneRootGroup.style.display = isTuning ? 'none' : 'block';
+              tempoGroup.style.display = isTuning ? 'none' : 'block';
+              metronomeVolumeGroup.style.display = isTuning ? 'none' : 'block';
           }
 
           // Start the drone with current root note
@@ -953,13 +1104,24 @@
               getTuningNote(); // drops octave 6 to 5 if the note has no octave 6
               updateOctaveOptions();
               syncStringButtons();
+              updateFingerboard();
               if (isPlaying && droneSource === 'tuning') {
                   stopDrone();
                   startDrone();
               }
           }
 
-          tuningNoteSelect.addEventListener('change', onTuningSelectionChange);
+          tuningNoteSelect.addEventListener('change', () => {
+              // Notes below G have no violin octave 3 (that's viola territory).
+              // When changing NOTE lands there, bump to Mid (4) so violinists
+              // aren't surprised. Viola players can still pick Low manually
+              // via the octave dropdown afterward.
+              if (tuningOctaveSelect.value === '3' &&
+                  NOTE_ORDER.indexOf(tuningNoteSelect.value) < NOTE_ORDER.indexOf('G')) {
+                  tuningOctaveSelect.value = '4';
+              }
+              onTuningSelectionChange();
+          });
           tuningOctaveSelect.addEventListener('change', onTuningSelectionChange);
 
           // Open-string buttons: set the pickers and restart tone
@@ -1187,6 +1349,7 @@
           updateSourceUI();
           updateOctaveOptions();
           syncStringButtons();
+          updateFingerboard();
 
           // Spacebar to start/stop
           document.addEventListener('keydown', (e) => {
