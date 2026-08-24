@@ -589,6 +589,46 @@
           let audioInitialized = false;
           let droneSource = 'mp3'; // 'mp3' or 'tuning' ('warm' kept internally as MP3-load fallback)
 
+          // --- ANALYTICS (GA4 custom events) -------------------------------
+          // Added 2026-08-24. Pageviews were already tracked via the gtag tag
+          // in <head>; these are the EVENTS that answer "did they press
+          // anything." Guarded so the app never breaks if gtag is blocked by
+          // an ad blocker or fails to load.
+          //
+          // Context params ride along on every event:
+          //   member  - '1'/'0', passed in by the WordPress embed shortcode.
+          //             NEVER a name or an email. Lets us split member vs
+          //             non-member usage without a database.
+          //   src     - free-form campaign/placement tag, e.g. ?src=newsletter
+          //   surface - 'embed' when inside an iframe, 'direct' when standalone
+          const MD_PARAMS = new URLSearchParams(location.search);
+          const MD_CONTEXT = {
+              member: MD_PARAMS.get('member') || 'unknown',
+              src: MD_PARAMS.get('src') || 'none',
+              surface: (window.self !== window.top) ? 'embed' : 'direct'
+          };
+          let mdSessionStart = null;
+
+          function track(name, params) {
+              try {
+                  if (typeof gtag !== 'function') return;
+                  gtag('event', name, Object.assign({}, MD_CONTEXT, params || {}));
+                  console.log('[track]', name, params || {});
+              } catch (err) {
+                  // Analytics must never break the instrument.
+                  console.warn('[track] failed', err);
+              }
+          }
+
+          // Sliders fire on every pixel of movement. Debounce so GA4 gets the
+          // value the user landed on, not the 40 they dragged through.
+          function trackDebounced(name, params, key, delay) {
+              trackDebounced.timers = trackDebounced.timers || {};
+              clearTimeout(trackDebounced.timers[key]);
+              trackDebounced.timers[key] = setTimeout(() => track(name, params), delay || 1200);
+          }
+          // -----------------------------------------------------------------
+
           // --- SYNTHS & AUDIO ---
 
           // Metronome synth: short, clean kick/click sound
@@ -1141,16 +1181,20 @@
               tempoNumber.value = value;
               tempoSlider.value = value;
               Tone.Transport.bpm.value = value; // Instant update, no ramp
+              trackDebounced('md_tempo_set', { bpm: value, via: 'number' }, 'tempo');
           });
 
           tempoSlider.addEventListener('input', (e) => {
               const value = parseInt(e.target.value);
               tempoNumber.value = value;
               Tone.Transport.bpm.value = value; // Instant update, no ramp
+              trackDebounced('md_tempo_set', { bpm: value, via: 'slider' }, 'tempo');
           });
 
           // Update drone source (restart drone if playing)
           droneSourceSelect.addEventListener('change', (e) => {
+              // THE event for the relaunch: is anyone finding tuning mode?
+              track('md_source_switch', { from: droneSource, to: e.target.value });
               droneSource = e.target.value;
               updateSourceUI();
               if (isPlaying) {
@@ -1180,21 +1224,28 @@
                   NOTE_ORDER.indexOf(tuningNoteSelect.value) < NOTE_ORDER.indexOf('G')) {
                   tuningOctaveSelect.value = '4';
               }
+              // Does anyone use the full C3-D6 range, or just the four strings?
+              track('md_tuning_set', { note: tuningNoteSelect.value, octave: tuningOctaveSelect.value, via: 'note_dropdown' });
               onTuningSelectionChange();
           });
-          tuningOctaveSelect.addEventListener('change', onTuningSelectionChange);
+          tuningOctaveSelect.addEventListener('change', () => {
+              track('md_tuning_set', { note: tuningNoteSelect.value, octave: tuningOctaveSelect.value, via: 'octave_dropdown' });
+              onTuningSelectionChange();
+          });
 
           // Open-string buttons: set the pickers and restart tone
           stringButtons.forEach(btn => {
               btn.addEventListener('click', () => {
                   tuningNoteSelect.value = btn.dataset.note;
                   tuningOctaveSelect.value = btn.dataset.octave;
+                  track('md_tuning_set', { note: btn.dataset.note, octave: btn.dataset.octave, via: 'string_button' });
                   onTuningSelectionChange();
               });
           });
 
           // Update drone root note (restart drone if playing) - instant
           droneRootSelect.addEventListener('change', () => {
+              track('md_drone_root', { note: droneRootSelect.value });
               if (isPlaying) {
                   stopDrone();
                   startDrone();
@@ -1236,6 +1287,14 @@
                   console.log('Already playing, ignoring click');
                   return; // Already playing, ignore
               }
+
+              // "Play pressed" is the real used-it signal. Pageviews mean nothing.
+              mdSessionStart = Date.now();
+              track('md_start', {
+                  source: droneSource,
+                  note: droneSource === 'tuning' ? getTuningNote() : droneRootSelect.value,
+                  bpm: parseInt(tempoNumber.value) || 0
+              });
 
               try {
                   console.log('Starting playback initialization...');
@@ -1317,6 +1376,11 @@
                           } catch (error) {
                               console.error(`Failed to load ${root} MP3:`, error.message);
                               console.log('Strings not ready — starting with synth, will upgrade when loaded');
+                              // Instrument the bug that already bit us: this is
+                              // the path that produced the recurring "organ
+                              // tone" complaints. Now it shows up as a number
+                              // instead of waiting for someone's ears.
+                              track('md_mp3_fallback', { note: root, reason: 'load_timeout' });
                               // IMPORTANT: do NOT set droneSource = 'warm' here. A previous
                               // version did that, which permanently silenced the strings for
                               // the whole session even after the MP3s finished loading (the
@@ -1388,6 +1452,13 @@
           stopBtn.addEventListener('click', () => {
               if (!isPlaying) return; // Not playing, safe no-op
 
+              // Session length separates "practice tool" from "curiosity click".
+              track('md_stop', {
+                  source: droneSource,
+                  seconds: mdSessionStart ? Math.round((Date.now() - mdSessionStart) / 1000) : 0
+              });
+              mdSessionStart = null;
+
               console.log('Stopping transport and drone...');
               Tone.Transport.stop();
               stopDrone();
@@ -1445,6 +1516,7 @@
               }
               if (failedFiles.length > 0) {
                   console.warn('✗ Failed to load:', failedFiles.join(', '));
+                  track('md_mp3_missing', { count: failedFiles.length, notes: failedFiles.join('|') });
                   console.warn('Make sure these files are uploaded to the server:');
                   failedFiles.forEach(note => {
                       console.warn(`  - ${MP3_FILE_MAP[note]}`);
